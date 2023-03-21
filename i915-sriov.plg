@@ -1,0 +1,158 @@
+<?xml version='1.0' standalone='yes'?>
+
+<!DOCTYPE PLUGIN [
+<!ENTITY name          "i915-sriov">
+<!ENTITY author        "zhtengw">
+<!ENTITY repo          "unraid-i915-sriov">
+<!ENTITY gitbranch     "master">
+
+<!ENTITY pluginver     "2023.03.21">
+<!ENTITY minosver      "6.11.0">
+
+<!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
+<!ENTITY pluginurl     "&githuburl;/&name;.plg">
+<!ENTITY pkgurl        "&githuburl;/packages">
+<!ENTITY supporturl    "https://forums.unraid.net/topic/136621-unraid-kernel-with-igpu-sr-iov-support/">
+
+<!-- Defines the persistent (USB) directory where downloaded packages are cached -->
+<!ENTITY plugindir     "/boot/config/plugins/&name;/">
+<!ENTITY packages      "&plugindir;/packages">
+]>
+
+<PLUGIN  name="&name;"
+         author="&author;"
+         version="&pluginver;"
+         pluginURL="&pluginurl;"
+         support="&supporturl;"
+         min="&minosver;"
+         >
+
+<CHANGES>
+## i915-sriov
+
+### 2023.03.21
+- Initial unRAID V6.11 release.
+</CHANGES>
+
+<!-- Generate the i915-sriov.conf -->
+<FILE Run="/bin/bash" Method="install">
+<INLINE>
+MODCFGDIR="/boot/config/modprobe.d/"
+# install config to modprobe.d/i915-sriov.conf
+mkdir -p ${MODCFGDIR}
+echo "options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
+
+echo "modprobe i915 >> /boot/config/go"
+echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/config/go
+</INLINE>
+</FILE>
+
+<!-- Download, cache the i915-sriov module match the kernel version -->
+<FILE Run="/bin/bash">
+<INLINE>
+
+KERNEL_V="$(uname -r)"
+PKGNAME="&name;-${KERNEL_V}.txz"
+
+#Download i915-sriov module Package
+download() {
+if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PKGNAME}" "&pkgurl;/${PKGNAME}" ; then
+  wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PKGNAME}.md5" "&pkgurl;/${PKGNAME}.md5"
+  if [ "$(md5sum &packages;/${KERNEL_V%%-*}/${PKGNAME} | awk '{print $1}')" != "$(cat &packages;/${KERNEL_V%%-*}/${PKGNAME}.md5 | awk '{print $1}')" ]; then
+    echo
+    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
+    echo "--------------------------------CHECKSUM ERROR!---------------------------------"
+    rm -rf &plugindir;
+    exit 1
+  fi
+  echo
+  echo "----Successfully downloaded i915-sriov module Package for kernel v${KERNEL_V%%-*}, please wait!----"
+else
+  echo
+  echo "--------------Can't download i915-sriov module Package for kernel v${KERNEL_V%%-*}-----------------"
+  rm -rf &plugindir;
+  exit 1
+fi
+}
+
+#Check if driver is already downloaded
+check() {
+if ! ls -1 &packages;/${KERNEL_V%%-*}/ | grep -q "${PKGNAME}" ; then
+  echo
+  echo "+=============================================================================="
+  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "|"
+  echo "| Don't close this window with the red 'X' in the top right corner until the 'DONE' button is displayed!"
+  echo "|"
+  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "+=============================================================================="
+  echo
+  echo "-----------------Downloading i915-sriov module Package for kernel v${KERNEL_V%%-*}------------------"
+  echo "----------This could take some time, please don't close this window!------------"
+  download
+else
+  echo
+  echo "--------------------i915-sriov module Package for kernel v${KERNEL_V%%-*} found locally---------------------"
+fi
+}
+
+# Script main
+check
+/sbin/upgradepkg --install-new "&packages;/${KERNEL_V%%-*}/${PKGNAME}"
+# Fix PCI address error when iGPU VF assigned to VM
+sed -i "s/\(strSpecialAddress.*\)\$gpu_function/\1\"0\"/" /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
+ 
+echo
+echo "------------Installation of i915-sriov module Package for kernel v${KERNEL_V%%-*} successful, reboot to take effect.----------------"
+echo
+
+exit 0
+</INLINE>
+</FILE>
+
+<!-- The 'remove' script -->
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+set -e
+
+echo ""
+echo "+=============================================================================="
+echo "| Uninstalling packages, removing directories and files"
+echo "+=============================================================================="
+echo ""
+
+# Remove modprobe from go script
+sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
+
+# Define directories and files to remove in a multi-line string
+dirs_files_to_remove="
+&plugindir;
+/boot/config/modprobe.d/i915-sriov.conf
+"
+
+echo "Starting directory and file removal\n"
+
+# Read through package removal lines, uninstalling each
+while IFS= read -r line
+do
+  # If line is empty, skip to the next iteration
+  [ -z "$line" ] &amp;&amp; continue
+
+  echo "Deleting $line"
+  # rm -rf "/path/to/prefix*" * expansion fails due to quotes, wrap in bash exec
+  bash -c "rm -rf $line"
+done &lt; &lt;(printf '%s\n' "$dirs_files_to_remove")
+
+printf "\nDirectory and file removal done"
+
+echo ""
+echo "+=============================================================================="
+echo "| &name; has been uninstalled, please reboot your server."
+echo "+=============================================================================="
+echo ""
+
+exit 0
+</INLINE>
+</FILE>
+
+</PLUGIN>
