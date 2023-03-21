@@ -37,12 +37,13 @@
 <!-- Generate the i915-sriov.conf -->
 <FILE Run="/bin/bash" Method="install">
 <INLINE>
+mkdir -p &packages;
 MODCFGDIR="/boot/config/modprobe.d/"
 # install config to modprobe.d/i915-sriov.conf
 mkdir -p ${MODCFGDIR}
 echo "options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
 
-echo "modprobe i915 >> /boot/config/go"
+echo "modprobe i915" >> /boot/config/go
 echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/config/go
 </INLINE>
 </FILE>
@@ -56,13 +57,16 @@ PKGNAME="&name;-${KERNEL_V}.txz"
 
 #Download i915-sriov module Package
 download() {
+mkdir -p &packages;/${KERNEL_V%%-*}
 if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PKGNAME}" "&pkgurl;/${PKGNAME}" ; then
   wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PKGNAME}.md5" "&pkgurl;/${PKGNAME}.md5"
   if [ "$(md5sum &packages;/${KERNEL_V%%-*}/${PKGNAME} | awk '{print $1}')" != "$(cat &packages;/${KERNEL_V%%-*}/${PKGNAME}.md5 | awk '{print $1}')" ]; then
     echo
     echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
     echo "--------------------------------CHECKSUM ERROR!---------------------------------"
-    rm -rf &plugindir;
+    rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
+    # Remove modprobe from go script
+    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
     exit 1
   fi
   echo
@@ -70,7 +74,9 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KE
 else
   echo
   echo "--------------Can't download i915-sriov module Package for kernel v${KERNEL_V%%-*}-----------------"
-  rm -rf &plugindir;
+  rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
+    # Remove modprobe from go script
+    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
   exit 1
 fi
 }
