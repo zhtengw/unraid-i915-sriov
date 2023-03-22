@@ -46,8 +46,8 @@ if [ ! -f "${MODCFGDIR}/i915-sriov.conf" ]; then
   blacklist i915 
   options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
 
-  echo "modprobe i915 &amp;" >> /boot/config/go
-  echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/config/go
+  echo "modprobe i915 &amp;&amp; sleep 3" >> /boot/config/go
+  echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs &amp;&amp; /usr/local/sbin/vfio-pci" >> /boot/config/go
 fi
 </INLINE>
 </FILE>
