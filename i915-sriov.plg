@@ -37,14 +37,18 @@
 <!-- Generate the i915-sriov.conf -->
 <FILE Run="/bin/bash" Method="install">
 <INLINE>
-mkdir -p &packages;
 MODCFGDIR="/boot/config/modprobe.d/"
-# install config to modprobe.d/i915-sriov.conf
-mkdir -p ${MODCFGDIR}
-echo "options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
+if [ ! -f "${MODCFGDIR}/i915-sriov.conf" ]; then
+  mkdir -p &packages;
+  # install config to modprobe.d/i915-sriov.conf
+  mkdir -p ${MODCFGDIR}
+  echo "# disable autoload old i915 module on boot
+  blacklist i915 
+  options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
 
-echo "modprobe i915" >> /boot/config/go
-echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/config/go
+  echo "modprobe i915 &amp;" >> /boot/config/go
+  echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/config/go
+fi
 </INLINE>
 </FILE>
 
@@ -55,6 +59,12 @@ echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" >> /boot/confi
 KERNEL_V="$(uname -r)"
 PKGNAME="&name;-${KERNEL_V}.txz"
 
+removal() {
+    rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
+    # Remove modprobe from go script
+    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
+}
+
 #Download i915-sriov module Package
 download() {
 mkdir -p &packages;/${KERNEL_V%%-*}
@@ -64,19 +74,15 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KE
     echo
     echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
     echo "--------------------------------CHECKSUM ERROR!---------------------------------"
-    rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
-    # Remove modprobe from go script
-    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
+    removal
     exit 1
   fi
   echo
   echo "----Successfully downloaded i915-sriov module Package for kernel v${KERNEL_V%%-*}, please wait!----"
 else
   echo
-  echo "--------------Can't download i915-sriov module Package for kernel v${KERNEL_V%%-*}-----------------"
-  rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
-    # Remove modprobe from go script
-    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
+  echo "--------Can't download i915-sriov module Package for kernel v${KERNEL_V%%-*}-----------"
+  removal
   exit 1
 fi
 }
@@ -88,29 +94,37 @@ if ! ls -1 &packages;/${KERNEL_V%%-*}/ | grep -q "${PKGNAME}" ; then
   echo "+=============================================================================="
   echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
   echo "|"
-  echo "| Don't close this window with the red 'X' in the top right corner until the 'DONE' button is displayed!"
+  echo "| Don't close this window with the red 'X' in the top right corner "
+  echo "| until the 'DONE' button is displayed!"
   echo "|"
   echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
   echo "+=============================================================================="
   echo
-  echo "-----------------Downloading i915-sriov module Package for kernel v${KERNEL_V%%-*}------------------"
-  echo "----------This could take some time, please don't close this window!------------"
+  echo "----------Downloading i915-sriov module Package for kernel v${KERNEL_V%%-*}----------"
+  echo "---------This could take some time, please don't close this window!-----------"
   download
 else
   echo
-  echo "--------------------i915-sriov module Package for kernel v${KERNEL_V%%-*} found locally---------------------"
+  echo "---------i915-sriov module Package for kernel v${KERNEL_V%%-*} found locally---------"
 fi
+}
+
+# Installation
+install() {
+  /sbin/upgradepkg --install-new "&packages;/${KERNEL_V%%-*}/${PKGNAME}"
+  # Fix PCI address error when iGPU VF assigned to VM
+  sed -i "s/\(strSpecialAddress.*\)\$gpu_function/\1\"0\"/" /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
 }
 
 # Script main
 check
-/sbin/upgradepkg --install-new "&packages;/${KERNEL_V%%-*}/${PKGNAME}"
-# Fix PCI address error when iGPU VF assigned to VM
-sed -i "s/\(strSpecialAddress.*\)\$gpu_function/\1\"0\"/" /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
+install
  
-echo
-echo "------------Installation of i915-sriov module Package for kernel v${KERNEL_V%%-*} successful, reboot to take effect.----------------"
-echo
+echo ""
+echo "+=============================================================================="
+echo "| Installation of i915-sriov module Package for kernel v${KERNEL_V%%-*} successful, reboot to take effect."
+echo "+=============================================================================="
+echo ""
 
 exit 0
 </INLINE>
