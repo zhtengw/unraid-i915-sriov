@@ -6,7 +6,7 @@
 <!ENTITY repo          "unraid-i915-sriov">
 <!ENTITY gitbranch     "master">
 
-<!ENTITY pluginver     "2023.03.21">
+<!ENTITY pluginver     "2023.03.28">
 <!ENTITY minosver      "6.11.0">
 
 <!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
@@ -29,6 +29,8 @@
 
 <CHANGES>
 ## i915-sriov
+### 2023.03.28
+- Change PCI address of VF to 0000:06:10.0
 
 ### 2023.03.21
 - Initial unRAID V6.11 release.
@@ -113,7 +115,23 @@ fi
 install() {
   /sbin/upgradepkg --install-new "&packages;/${KERNEL_V%%-*}/${PKGNAME}"
   # Fix PCI address error when iGPU VF assigned to VM
-  sed -i "s/\(strSpecialAddress.*\)\$gpu_function/\1\"0\"/" /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
+  cd / ; patch -p1 &lt;&lt;EOF
+--- a/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
++++ b/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
+@@ -780,7 +780,11 @@
+ 					\$strSpecialAddress = '';
+ 					if (\$gpu_bus == '00' &amp;&amp; \$gpu_slot == '02') {
+ 						\$strXVGA = '';
+-						\$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
++					    if (\$gpu_function == '00') {
++						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
++					    } else {
++						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x6' slot='0x10' function='0x0'/&gt;";
++					    }
+ 					}
+ 
+ 					\$strRomFile = '';
+EOF
 }
 
 # Script main
@@ -176,3 +194,4 @@ exit 0
 </FILE>
 
 </PLUGIN>
+
