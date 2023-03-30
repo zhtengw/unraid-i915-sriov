@@ -6,12 +6,13 @@
 <!ENTITY repo          "unraid-i915-sriov">
 <!ENTITY gitbranch     "master">
 
-<!ENTITY pluginver     "2023.03.28">
+<!ENTITY pluginver     "2023.03.30">
 <!ENTITY minosver      "6.11.0">
 
 <!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
 <!ENTITY pluginurl     "&githuburl;/&name;.plg">
 <!ENTITY pkgurl        "&githuburl;/packages">
+<!ENTITY pluginpkg     "unraid-&name;-&pluginver;.txz">
 <!ENTITY supporturl    "https://forums.unraid.net/topic/136621-unraid-kernel-with-igpu-sr-iov-support/">
 
 <!-- Defines the persistent (USB) directory where downloaded packages are cached -->
@@ -29,12 +30,20 @@
 
 <CHANGES>
 ## i915-sriov
+### 2023.03.30
+- Add plugin page in Settings;
+- Fix HW transcode not work for PF on linux-5.19
+
 ### 2023.03.28
 - Change PCI address of VF to 0000:06:10.0
 
 ### 2023.03.21
 - Initial unRAID V6.11 release.
 </CHANGES>
+
+<FILE Name="&plugindir;/&pluginpkg;" Run="upgradepkg --install-new">
+<URL>&pkgurl;/&pluginpkg;</URL>
+</FILE>
 
 <!-- Generate the i915-sriov.conf -->
 <FILE Run="/bin/bash" Method="install">
@@ -47,10 +56,36 @@ if [ ! -f "${MODCFGDIR}/i915-sriov.conf" ]; then
   echo "# disable autoload old i915 module on boot
   blacklist i915 
   options i915 enable_guc=7" > ${MODCFGDIR}/i915-sriov.conf
-
-  echo "modprobe i915 &amp;&amp; sleep 3" >> /boot/config/go
-  echo "echo 2 > /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs &amp;&amp; /usr/local/sbin/vfio-pci" >> /boot/config/go
 fi
+
+mkdir -p &plugindir;
+
+#Create settings file if not found
+if [ ! -f "&plugindir;/&name;.cfg" ]; then
+  echo 'vfnumber=2' > "&plugindir;/&name;.cfg"
+fi
+  
+if [ ! -f /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig ]; then
+  cp /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig
+fi
+# Fix PCI address error when iGPU VF assigned to VM
+cd / ; patch -p1 &lt;&lt;EOF
+--- a/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
++++ b/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
+@@ -780,7 +780,11 @@
+ 					\$strSpecialAddress = '';
+ 					if (\$gpu_bus == '00' &amp;&amp; \$gpu_slot == '02') {
+ 						\$strXVGA = '';
+-						\$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
++					    if (\$gpu_function == '00') {
++						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
++					    } else {
++						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x06' slot='0x10' function='0x0'/&gt;";
++					    }
+ 					}
+ 
+ 					\$strRomFile = '';
+EOF
 </INLINE>
 </FILE>
 
@@ -63,8 +98,6 @@ PKGNAME="&name;-${KERNEL_V}.txz"
 
 removal() {
     rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
-    # Remove modprobe from go script
-    sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
 }
 
 #Download i915-sriov module Package
@@ -106,6 +139,10 @@ if ! ls -1 &packages;/${KERNEL_V%%-*}/ | grep -q "${PKGNAME}" ; then
   echo "---------This could take some time, please don't close this window!-----------"
   download
 else
+  wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${PKGNAME}.md5" "&pkgurl;/${PKGNAME}.md5"
+  if [ "$(md5sum &packages;/${KERNEL_V%%-*}/${PKGNAME} | awk '{print $1}')" != "$(cat &packages;/${KERNEL_V%%-*}/${PKGNAME}.md5 | awk '{print $1}')" ]; then
+    download
+  fi
   echo
   echo "---------i915-sriov module Package for kernel v${KERNEL_V%%-*} found locally---------"
 fi
@@ -114,29 +151,22 @@ fi
 # Installation
 install() {
   /sbin/upgradepkg --install-new "&packages;/${KERNEL_V%%-*}/${PKGNAME}"
-  # Fix PCI address error when iGPU VF assigned to VM
-  cd / ; patch -p1 &lt;&lt;EOF
---- a/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
-+++ b/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
-@@ -780,7 +780,11 @@
- 					\$strSpecialAddress = '';
- 					if (\$gpu_bus == '00' &amp;&amp; \$gpu_slot == '02') {
- 						\$strXVGA = '';
--						\$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
-+					    if (\$gpu_function == '00') {
-+						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
-+					    } else {
-+						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x6' slot='0x10' function='0x0'/&gt;";
-+					    }
- 					}
- 
- 					\$strRomFile = '';
-EOF
+}
+
+enable_module() {
+  VF_NUM="$(cat &plugindir;/&name;.cfg | grep "vfnumber=" | cut -d '=' -f2 | sed "s/\"//g")"
+  modprobe i915 
+  sleep 2
+  if [ -f "/sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" ]; then
+    echo ${VF_NUM} &gt; /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs 
+    /usr/local/sbin/vfio-pci
+  fi
 }
 
 # Script main
 check
 install
+enable_module
  
 echo ""
 echo "+=============================================================================="
@@ -158,9 +188,12 @@ echo "+=========================================================================
 echo "| Uninstalling packages, removing directories and files"
 echo "+=============================================================================="
 echo ""
+removepkg &pluginpkg;
 
-# Remove modprobe from go script
-sed -i "/i915/d;/0000:00:02.0/d" /boot/config/go
+# Restore libvirt.php
+if [ -f /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig ]; then
+  mv /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
+fi
 
 # Define directories and files to remove in a multi-line string
 dirs_files_to_remove="

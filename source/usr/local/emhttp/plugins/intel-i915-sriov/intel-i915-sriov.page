@@ -1,0 +1,93 @@
+Menu="Utilities"
+Title="Intel Graphics SR-IOV"
+Icon="intel-sr-iov.png"
+---
+<?
+$_SESSION['pfpci'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_pf_pci");
+$_SESSION['sriov_support'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_sriov_support");
+$_SESSION['max_vfnum'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_vfs_total");
+$_SESSION['vfpci'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_vfs_pci");
+$_SESSION['vfnum'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_vfs_num");
+
+$docroot = $docroot ?? $_SERVER['DOCUMENT_ROOT'] ?: "/usr/local/emhttp";
+
+$plugin = "i915-sriov";
+
+function tr($string,$ret=false) {
+	if ( function_exists("_") )
+		$string =  str_replace('"',"&#34;",str_replace("'","&#39;",_($string)));
+	if ( $ret )
+		return $string;
+	else
+		echo $string;
+}
+
+?>
+<? if ($_SESSION['pfpci'] === null): ?>
+<p style="text-align: center;">No Intel Graphics card found. <br>Please go 
+		to <a href="https://www.intel.com/content/www/us/en/support/articles/000093216/graphics.html" target="_blank">Intel support page</a> to check for supported devices. </p>
+<? else: ?>
+<div>
+    <table class="settings">
+        <tr>
+            <td><b><font>Intel VGA Controller:</b><br><?php echo ($_SESSION['gvtadaptername']); ?></font></td>
+            <td><font><?php echo ($_SESSION['pfpci']); ?></font></td>
+        </tr>
+        <tr>
+            <td><b><font>SR-IOV Status:</font></b></td>
+            <? if ($_SESSION['sriov_support'] === null): ?>
+            <td><font style="color: red;">Not supported</font></td>
+        </tr>
+    </table>
+		<p style="text-align: center;">Your Graphics card does not support SR-IOV or is running in VF mode. <br>Please go 
+		to <a href="https://www.intel.com/content/www/us/en/support/articles/000093216/graphics.html" target="_blank">Intel support page</a> to check for supported devices. </p>
+            <? else: ?>
+			<td><font>Supported</font></td>
+        </tr>
+        <tr>
+            <td><b><font>Total VFs available:</b></font></td>
+            <td><font><?=$_SESSION['max_vfnum']?> </font></td>  
+        </tr>
+        <tr>
+            <td><b><font>Created VFs:</b></font></td>
+            <td><font><?php 
+		$data = explode("\n", $_SESSION['vfpci']);
+		foreach ($data as $pci){
+			echo ("$pci<br>"); 
+		}
+		?></font></td>
+        </tr>
+    </table>
+    <div id="title">
+        <span class="left"></span>
+    </div>
+<form class='js-confirm-leave' markdown="1" method="POST" action="/update.php" target="progressFrame">
+<input type="hidden" name="#file" value="<?=$plugin?>/<?=$plugin?>.cfg">
+
+<b><?tr("VF numbers(reboot if not take effect):");?></b>
+: <select name='vfnumber' size='1'>
+	<option selected="selected" value="<?=$_SESSION['vfnum']?>"><?=$_SESSION['vfnum']?></option>
+	<?
+	for ($i = 0; $i <= $_SESSION['max_vfnum']; $i++) {
+      echo "<option value=\"$i\"> $i</option>";
+	}
+	?>	
+	</select>
+&nbsp;
+: <input type="submit" name="#apply" value="<?tr("Apply");?>" id='Apply'><input type="button" id="DONE" value="<?tr("Done");?>" onclick="done()">
+
+</form>
+			<? endif; ?>
+
+</div>
+
+<? endif; ?>
+
+<center><a href="https://forums.unraid.net/topic/136621-unraid-kernel-with-igpu-sr-iov-support/" target="_blank"><?tr("Support Thread");?></a></center>
+
+<?php
+if(isset($_POST['vfnumber'])) {
+$VF_NUM = $_POST["vfnumber"];
+shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh set_vfs_num $VF_NUM");
+}
+?>
