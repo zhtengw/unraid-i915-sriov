@@ -67,13 +67,17 @@ mv linux-${KERVER} ${KERNAME}
 echo "Kernel source ${KERNAME} prepared."
 
 # Kernel prepare
-cp config-${KERVERUR} ${KERNAME}/.config
 cd ${KERNAME}
+if [[ ${URVER} < "6.12" ]];
+then
+	patch -p0 < ${CURDIR}/config-5.19-enable-pxp.patch
+fi
 make oldconfig
 make modules_prepare
 cd ${CURDIR}
 
 # Compile kernel
+#cp config-${KERVERUR} ${KERNAME}/.config
 #cd ${KERNAME}
 #make -j4
 #make INSTALL_MOD_PATH=${CURDIR}/tmpmodules modules_install
@@ -85,7 +89,7 @@ if [[ ${URVER} > "6.12" ]];
 then
 	git clone -b master https://github.com/zhtengw/i915-sriov-dkms.git
 else
-	git clone -b 5.19 https://github.com/zhtengw/i915-sriov-dkms.git
+	git clone -b 5.19-test https://github.com/zhtengw/i915-sriov-dkms.git
 fi
 cd i915-sriov-dkms
 make -j4 -C ${CURDIR}/${KERNAME} M=${CURDIR}/i915-sriov-dkms KVER=${KERVER}
@@ -96,6 +100,8 @@ cp i915-sriov-dkms/i915.ko.xz tmpplugin/lib/modules/${KERVERUR}/kernel/drivers/g
 
 # Make i915 package
 PKGNAME="i915-sriov"
+PKGARCH="x86_64"
+PKGBUILD="2"
 if [[ ! -e makepkg ]];
 then
 	bash unraid_unpack_bzroot.sh ${BZROOT} sbin/makepkg
@@ -103,6 +109,7 @@ then
 fi
 mkdir -p packages
 cd tmpplugin
+#${CURDIR}/makepkg --linkadd y --chown y ${CURDIR}/packages/${PKGNAME}-${KERVERUR}-${PKGARCH}-${PKGBUILD}.txz
 ${CURDIR}/makepkg --linkadd y --chown y ${CURDIR}/packages/${PKGNAME}-${KERVERUR}.txz
 cd ${CURDIR}/packages
 md5sum ${PKGNAME}-${KERVERUR}.txz > ${PKGNAME}-${KERVERUR}.txz.md5
