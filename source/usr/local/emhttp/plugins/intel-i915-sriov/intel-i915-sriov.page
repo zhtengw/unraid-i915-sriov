@@ -2,6 +2,12 @@ Menu="Utilities"
 Title="Intel Graphics SR-IOV"
 Icon="intel-sr-iov.png"
 ---
+<script>
+//Don't execute commands again if page is refreshed
+    if ( window.history.replaceState ) {
+        window.history.replaceState( null, null, window.location.href );
+    }
+</script>
 <?
 $_SESSION['pfpci'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_pf_pci");
 $_SESSION['sriov_support'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_sriov_support");
@@ -30,7 +36,7 @@ function tr($string,$ret=false) {
 <div>
     <table class="settings">
         <tr>
-            <td><b><font>Intel VGA Controller:</b><br><?php echo ($_SESSION['gvtadaptername']); ?></font></td>
+            <td><b><font>Intel VGA Controller:</b></font></td>
             <td><font><?php echo ($_SESSION['pfpci']); ?></font></td>
         </tr>
         <tr>
@@ -61,11 +67,13 @@ function tr($string,$ret=false) {
     <div id="title">
         <span class="left"></span>
     </div>
-<form class='js-confirm-leave' markdown="1" method="POST" action="/update.php" target="progressFrame">
+<form class='js-confirm-leave' markdown="1" method="POST" action="" target="progressFrame">
 <input type="hidden" name="#file" value="<?=$plugin?>/<?=$plugin?>.cfg">
 
-<b><?tr("VF numbers(reboot if not take effect):");?></b>
-: <select name='vfnumber' size='1'>
+<table class="settings">
+<tr>
+<td><b>VF numbers(reboot if not take effect):</b></td>
+<td> <select name='vfnumber' size='1'>
 	<option selected="selected" value="<?=$_SESSION['vfnum']?>"><?=$_SESSION['vfnum']?></option>
 	<?
 	for ($i = 0; $i <= $_SESSION['max_vfnum']; $i++) {
@@ -73,8 +81,9 @@ function tr($string,$ret=false) {
 	}
 	?>	
 	</select>
-&nbsp;
-: <input type="submit" name="#apply" value="<?tr("Apply");?>" id='Apply'><input type="button" id="DONE" value="<?tr("Done");?>" onclick="done()">
+ <input type="submit" name="#apply" value="Apply" id='Apply'><input type="button" id="DONE" value="Done" onclick="done()"></td>
+</tr>
+</table>
 
 </form>
 			<? endif; ?>
@@ -87,6 +96,7 @@ function tr($string,$ret=false) {
 
 <?php
 if(isset($_POST['vfnumber'])) {
+$_SESSION['vfnum'] = $_POST["vfnumber"];
 $VF_NUM = $_POST["vfnumber"];
 shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh set_vfs_num $VF_NUM");
 }
