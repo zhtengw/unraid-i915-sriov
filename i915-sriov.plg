@@ -6,7 +6,7 @@
 <!ENTITY repo          "unraid-i915-sriov">
 <!ENTITY gitbranch     "master">
 
-<!ENTITY pluginver     "2023.03.30">
+<!ENTITY pluginver     "2023.04.01">
 <!ENTITY minosver      "6.11.0">
 
 <!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
@@ -30,6 +30,11 @@
 
 <CHANGES>
 ## i915-sriov
+### 2023.04.01
+- make tools.sh work with multiple Intel Graphic Cards;
+- restore libvirt.php when module download failed;
+- make slot of PCI address to 0 when machine type is q35
+
 ### 2023.03.30
 - Add plugin page in Settings;
 - Fix HW transcode not work for PF on linux-5.19
@@ -67,12 +72,14 @@ fi
   
 if [ ! -f /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig ]; then
   cp /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig
+else
+  cp /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
 fi
 # Fix PCI address error when iGPU VF assigned to VM
 cd / ; patch -p1 &lt;&lt;EOF
 --- a/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
 +++ b/usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php	
-@@ -780,7 +780,11 @@
+@@ -780,7 +780,15 @@
  					\$strSpecialAddress = '';
  					if (\$gpu_bus == '00' &amp;&amp; \$gpu_slot == '02') {
  						\$strXVGA = '';
@@ -80,7 +87,11 @@ cd / ; patch -p1 &lt;&lt;EOF
 +					    if (\$gpu_function == '00') {
 +						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x".\$gpu_bus."' slot='0x".\$gpu_slot."' function='0x".\$gpu_function."'/&gt;";
 +					    } else {
-+						    \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x06' slot='0x10' function='0x0'/&gt;";
++					        if (\$machine_type == 'q35'){
++						        \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x06' slot='0x00' function='0x0'/&gt;";
++					        } else {
++						        \$strSpecialAddress = "&lt;address type='pci' domain='0x0000' bus='0x06' slot='0x10' function='0x0'/&gt;";
++						    }
 +					    }
  					}
  
@@ -97,7 +108,11 @@ KERNEL_V="$(uname -r)"
 PKGNAME="&name;-${KERNEL_V}.txz"
 
 removal() {
-    rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
+  rm -rf &plugindir; /boot/config/modprobe.d/i915-sriov.conf
+  # Restore libvirt.php
+  if [ -f /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig ]; then
+    mv /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php.orig /usr/local/emhttp/plugins/dynamix.vm.manager/include/libvirt.php
+  fi
 }
 
 #Download i915-sriov module Package
