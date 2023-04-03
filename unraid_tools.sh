@@ -118,7 +118,7 @@ cp i915-sriov-dkms/i915.ko.xz tmpplugin/lib/modules/${KERVERUR}/kernel/drivers/g
 
 if [[ ${URVER} < "6.11" ]];then
     mkdir -p tmpplugin/lib/firmware/i915/
-    wget -c https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/i915/tgl_guc_70.bin -O tmpplugin/lib/firmware/i915/tgl_guc_70.bin
+    wget -c https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/i915/tgl_guc_70.bin -O tmpplugin/lib/firmware/i915/tgl_guc_70.bin
 fi
 
 # Make i915 package
