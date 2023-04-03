@@ -7,7 +7,7 @@
 <!ENTITY gitbranch     "master">
 
 <!ENTITY pluginver     "2023.04.01">
-<!ENTITY minosver      "6.11.0">
+<!ENTITY minosver      "6.10.0">
 
 <!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
 <!ENTITY pluginurl     "&githuburl;/&name;.plg">

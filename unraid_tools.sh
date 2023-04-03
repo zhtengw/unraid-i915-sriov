@@ -1,4 +1,10 @@
 #!/bin/bash
+CURDIR=$(pwd)
+URTMP=${CURDIR}/tmp
+BZROOT=${URTMP}/bzroot
+TMPROOT=${CURDIR}/tmproot
+
+download () {
 #URVER="6.11.5"
 #URVER="6.12.0-rc2"
 URVER="$1"
@@ -7,18 +13,37 @@ URVER="$1"
 #CHANNEL="next"
 CHANNEL="$2"
 URZIP="unRAIDServer-${URVER}-x86_64.zip"
-CURDIR=$(pwd)
-
 read -p "Pack base on version ${URVER} in ${CHANNEL}"
-
 # The link is found from https://unraid.net/download
 # echo https://unraid-dl.sfo2.cdn.digitaloceanspaces.com/${CHANNEL}/${URZIP}
-wget -c https://unraid-dl.sfo2.cdn.digitaloceanspaces.com/${CHANNEL}/${URZIP}
+if ! wget -c https://unraid-dl.sfo2.cdn.digitaloceanspaces.com/${CHANNEL}/${URZIP} ; then
+  exit 1
+fi
+}
 
-URTMP=${CURDIR}/tmp
+unpack_bzroot() {
+BZROOT=$1;
+if [ -z "${BZROOT}" ] || [ ! -e ${BZROOT} ];
+then
+    echo "Path for bzroot not provided."
+    exit
+fi
+
+EXTDIR=$2
+SKIPBLK=$(cpio -ivt -H newc < ${BZROOT} 2>&1 > /dev/null | awk '{print $1}')
+
+echo "Skip ${SKIPBLK} to extract "${BZROOT};
+
+mkdir ${TMPROOT}
+# Extract ${EXTDIR}
+		dd if=${BZROOT} bs=512 skip=${SKIPBLK} | xzcat | (cd ${TMPROOT}; cpio -i -d -H newc --no-absolute-filenames ${EXTDIR} ) 
+}
+
+kernel_prepare() {
+if ! download $@ ;then
+  echo error;
+fi
 unzip ${URZIP} -d ${URTMP}
-BZROOT=${URTMP}/bzroot
-TMPROOT=${CURDIR}/tmproot
 
 # Extract usr/src
 if [[ ${URVER} > "6.12" ]];
@@ -28,18 +53,7 @@ then
 	unsquashfs -d tmproot/usr -q ${URTMP}/bzfirmware -extract-file ${EXTDIR}
 else
 	EXTDIR="usr/src/linux-*"
-	if [[ -e unraid_unpack_bzroot.sh  ]];
-	then
-		bash unraid_unpack_bzroot.sh ${BZROOT} ${EXTDIR}
-	else
-		SKIPBLK=$(cpio -ivt -H newc < ${BZROOT} 2>&1 > /dev/null | awk '{print $1}')
-
-		echo "Skip ${SKIPBLK} to extract "${BZROOT};
-
-		sudo /bin/rm -r ${TMPROOT}
-		mkdir ${TMPROOT}
-		dd if=${BZROOT} bs=512 skip=${SKIPBLK} | xzcat | (cd ${TMPROOT}; cpio -i -d -H newc --no-absolute-filenames ${EXTDIR} ) 
-	fi
+	unpack_bzroot ${BZROOT} ${EXTDIR}
 fi
 
 KERNAME=$(ls ${TMPROOT}/usr/src/)
@@ -64,17 +78,18 @@ done
 cd ../
 mv linux-${KERVER} ${KERNAME}
 
-echo "Kernel source ${KERNAME} prepared."
-
 # Kernel prepare
 cd ${KERNAME}
-if [[ ${URVER} < "6.12" ]];
+if [[ ${URVER} < "6.12" ]] && [[ ${URVER} > "6.11" ]];
 then
 	patch -p0 < ${CURDIR}/config-5.19-enable-pxp.patch
 fi
 make oldconfig
 make modules_prepare
 cd ${CURDIR}
+
+echo "Kernel source ${KERNAME} prepared."
+}
 
 # Compile kernel
 #cp config-${KERVERUR} ${KERNAME}/.config
@@ -84,12 +99,15 @@ cd ${CURDIR}
 #cd ${CURDIR}
 ##cp -r /lib/modules/${KERVERUR} tmpmodules
 
+build_i915(){
+kernel_prepare $@
 # Build i915-sriov module
-if [[ ${URVER} > "6.12" ]];
-then
+if [[ ${URVER} > "6.12" ]];then
 	git clone -b master https://github.com/zhtengw/i915-sriov-dkms.git
+elif [[ ${URVER} > "6.11" ]];then
+	git clone -b 5.19 https://github.com/zhtengw/i915-sriov-dkms.git
 else
-	git clone -b 5.19-test https://github.com/zhtengw/i915-sriov-dkms.git
+	git clone -b 5.15 https://github.com/zhtengw/i915-sriov-dkms.git
 fi
 cd i915-sriov-dkms
 make -j4 -C ${CURDIR}/${KERNAME} M=${CURDIR}/i915-sriov-dkms KVER=${KERVER}
@@ -114,6 +132,7 @@ ${CURDIR}/makepkg --linkadd y --chown y ${CURDIR}/packages/${PKGNAME}-${KERVERUR
 cd ${CURDIR}/packages
 md5sum ${PKGNAME}-${KERVERUR}.txz > ${PKGNAME}-${KERVERUR}.txz.md5
 cd ${CURDIR}
+}
 
 # Get new kernel image after building
 #cp ${KERNAME}/arch/x86/boot/bzImage ./bzimage
@@ -128,10 +147,30 @@ cd ${CURDIR}
 #mksquashfs tmpmodules bzmodules -quiet -comp xz # with squashfs-tools
 #sha256sum bzmodules > bzmodules.sha256
 
+clean() {
 # Clean up
-/bin/rm -r ${CURDIR}/tmproot
-/bin/rm -r ${CURDIR}/tmpmodules
-/bin/rm -r ${CURDIR}/tmpplugin
-/bin/rm -r ${CURDIR}/tmp
-/bin/rm -r ${CURDIR}/${KERNAME}
-/bin/rm -r ${CURDIR}/i915-sriov-dkms
+if [ -z ${CURDIR} ];then
+  exit 1;
+fi
+if [ -e ${CURDIR}/tmproot ];then
+  /bin/rm -r ${CURDIR}/tmproot
+fi
+if [ -e ${CURDIR}/tmpmodules ];then
+  /bin/rm -r ${CURDIR}/tmpmodules
+fi
+if [ -e ${CURDIR}/tmpplugin ];then
+  /bin/rm -r ${CURDIR}/tmpplugin
+fi
+if [ -e ${CURDIR}/tmp ];then
+  /bin/rm -r ${CURDIR}/tmp
+fi
+if [ -n "${KERNAME}" ] && [ -e ${CURDIR}/${KERNAME} ];then
+  /bin/rm -r ${CURDIR}/${KERNAME}
+fi
+if [ -e ${CURDIR}/i915-sriov-dkms ];then
+  /bin/rm -r ${CURDIR}/i915-sriov-dkms
+fi
+}
+
+$@
+clean
