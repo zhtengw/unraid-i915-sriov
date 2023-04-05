@@ -7,6 +7,16 @@ Icon="intel-sr-iov.png"
     if ( window.history.replaceState ) {
         window.history.replaceState( null, null, window.location.href );
     }
+//function dialogtest(){
+//  openBox("/plugins/intel-i915-sriov/include/showWarn.php","test",300,500,false);
+//}
+function submitConfirm() {
+    if (confirm("Make sure all virtual machines with VFs passthrough are stopped!")) {
+      return true;
+    }
+    return false;
+}
+
 </script>
 <?
 $_SESSION['pfpci'] = shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh get_pf_pci");
@@ -81,7 +91,7 @@ function tr($string,$ret=false) {
 	}
 	?>	
 	</select>
- <input type="submit" name="#apply" value="Apply" id='Apply'><input type="button" id="DONE" value="Done" onclick="done()"></td>
+ <input type="submit" name="toCFG" value="Save to Config file" id='toCFG'><input type="submit" name="toSysfs" id="toSysfs" value="Enable Now" onclick="return submitConfirm()"></td>
 </tr>
 </table>
 
@@ -94,10 +104,17 @@ function tr($string,$ret=false) {
 
 <center><a href="https://forums.unraid.net/topic/136621-unraid-kernel-with-igpu-sr-iov-support/" target="_blank"><?tr("Support Thread");?></a></center>
 
-<?php
+<?
 if(isset($_POST['vfnumber'])) {
-$_SESSION['vfnum'] = $_POST["vfnumber"];
-$VF_NUM = $_POST["vfnumber"];
-shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh set_vfs_num $VF_NUM");
+  $_SESSION['vfnum'] = $_POST["vfnumber"];
+  $VF_NUM = $_POST["vfnumber"];
+  
+  if(isset($_POST['toCFG'])) {
+    shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh set_cfg $VF_NUM");
+  }
+  
+  if(isset($_POST['toSysfs'])) {
+    shell_exec("bash /usr/local/emhttp/plugins/intel-i915-sriov/include/tools.sh set_vfs_num $VF_NUM");
+  }
 }
 ?>

@@ -6,7 +6,7 @@
 <!ENTITY repo          "unraid-i915-sriov">
 <!ENTITY gitbranch     "master">
 
-<!ENTITY pluginver     "2023.04.01">
+<!ENTITY pluginver     "2023.04.06">
 <!ENTITY minosver      "6.10.0">
 
 <!ENTITY githuburl     "https://raw.githubusercontent.com/&author;/&repo;/&gitbranch;">
@@ -30,10 +30,15 @@
 
 <CHANGES>
 ## i915-sriov
+### 2023.04.06
+- Make change VFs number work;
+- Add option for saving to config file only;
+- Add support for unRAID 6.10.x
+
 ### 2023.04.01
-- make tools.sh work with multiple Intel Graphic Cards;
-- restore libvirt.php when module download failed;
-- make slot of PCI address to 0 when machine type is q35
+- Make tools.sh work with multiple Intel Graphic Cards;
+- Restore libvirt.php when module download failed;
+- Make slot of PCI address to 0 when machine type is q35
 
 ### 2023.03.30
 - Add plugin page in Settings;
@@ -170,7 +175,7 @@ install() {
 
 enable_module() {
   VF_NUM="$(cat &plugindir;/&name;.cfg | grep "vfnumber=" | cut -d '=' -f2 | sed "s/\"//g")"
-  modprobe i915 
+  modprobe i915 enable_guc=7
   sleep 2
   if [ -f "/sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs" ]; then
     echo ${VF_NUM} &gt; /sys/devices/pci0000:00/0000:00:02.0/sriov_numvfs 
