@@ -4,6 +4,41 @@ URTMP=${CURDIR}/tmp
 BZROOT=${URTMP}/bzroot
 TMPROOT=${CURDIR}/tmproot
 
+vercomp () {
+    if [[ $1 == $2 ]]
+    then
+        echo "="
+        return 0
+    fi
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    # fill empty fields in ver1 with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
+    do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++))
+    do
+        if [[ -z ${ver2[i]} ]]
+        then
+            # fill empty fields in ver2 with zeros
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]}))
+        then
+            echo ">"
+            return 1
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]}))
+        then
+            echo "<"
+            return 2
+        fi
+    done
+    echo "="
+    return 0
+}
+
 download () {
 #URVER="6.11.5"
 #URVER="6.12.0-rc2"
@@ -46,7 +81,7 @@ fi
 unzip ${URZIP} -d ${URTMP}
 
 # Extract usr/src
-if [[ ${URVER} > "6.12" ]];
+if [[ $(vercomp ${URVER} "6.11.99") == ">" ]];
 then
 	EXTDIR="src"
 	mkdir -p ${TMPROOT}/usr
@@ -80,7 +115,7 @@ mv linux-${KERVER} ${KERNAME}
 
 # Kernel prepare
 cd ${KERNAME}
-if [[ ${URVER} < "6.12" ]] && [[ ${URVER} > "6.11" ]];
+if [[ $(vercomp ${URVER} "6.12") == "<" ]] && [[ $(vercomp ${URVER} "6.10.99") == ">" ]];
 then
 	patch -p0 < ${CURDIR}/config-5.19-enable-pxp.patch
 fi
@@ -102,9 +137,9 @@ echo "Kernel source ${KERNAME} prepared."
 build_i915(){
 kernel_prepare $@
 # Build i915-sriov module
-if [[ ${URVER} > "6.12" ]];then
+if [[ $(vercomp ${URVER} "6.11.99") == ">" ]];then
 	git clone -b master https://github.com/zhtengw/i915-sriov-dkms.git
-elif [[ ${URVER} > "6.11" ]];then
+elif [[ $(vercomp ${URVER} "6.10.99") == ">" ]];then
 	git clone -b 5.19 https://github.com/zhtengw/i915-sriov-dkms.git
 else
 	git clone -b 5.15 https://github.com/zhtengw/i915-sriov-dkms.git
@@ -116,7 +151,7 @@ cd ${CURDIR}
 mkdir -p tmpplugin/lib/modules/${KERVERUR}/kernel/drivers/gpu/drm/i915
 cp i915-sriov-dkms/i915.ko.xz tmpplugin/lib/modules/${KERVERUR}/kernel/drivers/gpu/drm/i915
 
-if [[ ${URVER} < "6.11" ]];then
+if [[ $(vercomp ${URVER} "6.11") == "<" ]];then
     mkdir -p tmpplugin/lib/firmware/i915/
     wget -c https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/i915/tgl_guc_70.bin -O tmpplugin/lib/firmware/i915/tgl_guc_70.bin
 fi
