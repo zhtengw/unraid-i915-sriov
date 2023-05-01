@@ -138,7 +138,7 @@ build_i915(){
 kernel_prepare $@
 # Build i915-sriov module
 if [[ $(vercomp ${URVER} "6.11.99") == ">" ]];then
-	git clone -b master https://github.com/zhtengw/i915-sriov-dkms.git
+	git clone -b 6.1 https://github.com/zhtengw/i915-sriov-dkms.git
 elif [[ $(vercomp ${URVER} "6.10.99") == ">" ]];then
 	git clone -b 5.19 https://github.com/zhtengw/i915-sriov-dkms.git
 else
